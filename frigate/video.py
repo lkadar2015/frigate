@@ -235,9 +235,9 @@ class CameraWatchdog(threading.Thread):
                 self.ffmpeg_detect_process.kill()
 
                 if drain_output:
-                    self.ffmpeg_detect_process.communicate()
+                    self.ffmpeg_detect_process.communicate(timeout=30)
                 else:
-                    self.ffmpeg_detect_process.wait()
+                    self.ffmpeg_detect_process.wait(timeout=30)
 
         # Wait for old capture thread to fully exit before starting a new one
         if self.capture_thread is not None and self.capture_thread.is_alive():
