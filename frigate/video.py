@@ -54,6 +54,7 @@ from frigate.util.object import (
 )
 from frigate.util.process import FrigateProcess
 from frigate.util.time import get_tomorrow_at_time
+from frigate.util.services import restart_frigate
 
 logger = logging.getLogger(__name__)
 
@@ -337,9 +338,9 @@ class CameraWatchdog(threading.Thread):
                 self.requestor.send_data(f"{self.config.name}/status/detect", "offline")
                 self.camera_fps.value = 0
                 self.logger.info(
-                    f"No frames received from {self.config.name} in 20 seconds. Exiting ffmpeg..."
+                    f"No frames received from {self.config.name} in 20 seconds. Restarting frigate..."
                 )
-                self.reset_capture_thread()
+                restart_frigate()
             else:
                 # process is running normally
                 self.requestor.send_data(f"{self.config.name}/status/detect", "online")
