@@ -59,15 +59,13 @@ logger = logging.getLogger(__name__)
 
 
 def stop_ffmpeg(ffmpeg_process: sp.Popen[Any], logger: logging.Logger):
-    logger.info("Terminating the existing ffmpeg process...")
-    ffmpeg_process.terminate()
+    logger.info("Killing ffmpeg process...")
+    ffmpeg_process.kill()
     try:
-        logger.info("Waiting for ffmpeg to exit gracefully...")
+        logger.info("Waiting for ffmpeg to exit...")
         ffmpeg_process.communicate(timeout=30)
     except sp.TimeoutExpired:
-        logger.info("FFmpeg didn't exit. Force killing...")
-        ffmpeg_process.kill()
-        ffmpeg_process.communicate()
+        logger.info("FFmpeg didn't exit within 30 seconds...")
     ffmpeg_process = None
 
 
@@ -222,22 +220,16 @@ class CameraWatchdog(threading.Thread):
         self, terminate: bool = True, drain_output: bool = True
     ) -> None:
         if terminate:
-            self.ffmpeg_detect_process.terminate()
+            self.ffmpeg_detect_process.kill()
             try:
-                self.logger.info("Waiting for ffmpeg to exit gracefully...")
+                self.logger.info("Killing ffmpeg...")
 
                 if drain_output:
                     self.ffmpeg_detect_process.communicate(timeout=30)
                 else:
                     self.ffmpeg_detect_process.wait(timeout=30)
             except sp.TimeoutExpired:
-                self.logger.info("FFmpeg did not exit. Force killing...")
-                self.ffmpeg_detect_process.kill()
-
-                if drain_output:
-                    self.ffmpeg_detect_process.communicate(timeout=30)
-                else:
-                    self.ffmpeg_detect_process.wait(timeout=30)
+                self.logger.info("FFmpeg did not exit within 30 seconds")
 
         # Wait for old capture thread to fully exit before starting a new one
         if self.capture_thread is not None and self.capture_thread.is_alive():
