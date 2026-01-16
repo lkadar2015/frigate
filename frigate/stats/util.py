@@ -32,6 +32,7 @@ from frigate.util.services import (
 )
 from frigate.version import VERSION
 
+from frigate.video import restartHA
 
 def get_latest_version(config: FrigateConfig) -> str:
     if not config.telemetry.version_check:
@@ -303,6 +304,10 @@ def stats_snapshot(
             # from mypy 0.981 onwards
             "pid": pid,
         }
+
+    if restartHA != False:
+        total_camera_fps = -1
+
     stats["camera_fps"] = round(total_camera_fps, 2)
     stats["process_fps"] = round(total_process_fps, 2)
     stats["skipped_fps"] = round(total_skipped_fps, 2)
