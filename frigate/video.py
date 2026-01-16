@@ -57,6 +57,7 @@ from frigate.util.time import get_tomorrow_at_time
 
 logger = logging.getLogger(__name__)
 
+restartHA = false
 
 def stop_ffmpeg(ffmpeg_process: sp.Popen[Any], logger: logging.Logger):
     logger.info("Terminating the existing ffmpeg process...")
@@ -222,6 +223,7 @@ class CameraWatchdog(threading.Thread):
         self, terminate: bool = True, drain_output: bool = True
     ) -> None:
         if terminate:
+            restartHA = true
             self.ffmpeg_detect_process.terminate()
             try:
                 self.logger.info("Waiting for ffmpeg to exit gracefully...")
