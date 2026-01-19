@@ -306,7 +306,7 @@ def stats_snapshot(
         }
 
     if restartHA != False:
-        total_camera_fps = -1
+        total_camera_fps = 1000
 
     stats["camera_fps"] = round(total_camera_fps, 2)
     stats["process_fps"] = round(total_process_fps, 2)
