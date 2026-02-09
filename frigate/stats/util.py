@@ -279,18 +279,32 @@ def stats_snapshot(
             if camera_stats.capture_process_pid.value
             else None
         )
-        stats["cameras"][name] = {
-            "camera_fps": round(camera_stats.camera_fps.value, 2),
-            "process_fps": round(camera_stats.process_fps.value, 2),
-            "skipped_fps": round(camera_stats.skipped_fps.value, 2),
-            "detection_fps": round(camera_stats.detection_fps.value, 2),
-            "detection_enabled": config.cameras[name].detect.enabled,
-            "pid": pid,
-            "capture_pid": capture_pid,
-            "ffmpeg_pid": ffmpeg_pid,
-            "audio_rms": round(camera_stats.audio_rms.value, 4),
-            "audio_dBFS": round(camera_stats.audio_dBFS.value, 4),
-        }
+        if restartHA != False:
+            stats["cameras"][name] = {
+                "camera_fps": round(1000.0, 2),
+                "process_fps": round(camera_stats.process_fps.value, 2),
+                "skipped_fps": round(camera_stats.skipped_fps.value, 2),
+                "detection_fps": round(camera_stats.detection_fps.value, 2),
+                "detection_enabled": config.cameras[name].detect.enabled,
+                "pid": pid,
+                "capture_pid": capture_pid,
+                "ffmpeg_pid": ffmpeg_pid,
+                "audio_rms": round(camera_stats.audio_rms.value, 4),
+                "audio_dBFS": round(camera_stats.audio_dBFS.value, 4),
+            }
+        else:
+            stats["cameras"][name] = {
+                "camera_fps": round(camera_stats.camera_fps.value, 2),
+                "process_fps": round(camera_stats.process_fps.value, 2),
+                "skipped_fps": round(camera_stats.skipped_fps.value, 2),
+                "detection_fps": round(camera_stats.detection_fps.value, 2),
+                "detection_enabled": config.cameras[name].detect.enabled,
+                "pid": pid,
+                "capture_pid": capture_pid,
+                "ffmpeg_pid": ffmpeg_pid,
+                "audio_rms": round(camera_stats.audio_rms.value, 4),
+                "audio_dBFS": round(camera_stats.audio_dBFS.value, 4),
+            }
 
     stats["detectors"] = {}
     for name, detector in stats_tracking["detectors"].items():
