@@ -68,6 +68,7 @@ def stats_init(
         "latest_frigate_version": get_latest_version(config),
         "last_updated": int(time.time()),
         "processes": processes,
+        "restart": False,
     }
     return stats_tracking
 
@@ -279,32 +280,18 @@ def stats_snapshot(
             if camera_stats.capture_process_pid.value
             else None
         )
-        if restartHA != False:
-            stats["cameras"][name] = {
-                "camera_fps": round(1000.0, 2),
-                "process_fps": round(camera_stats.process_fps.value, 2),
-                "skipped_fps": round(camera_stats.skipped_fps.value, 2),
-                "detection_fps": round(camera_stats.detection_fps.value, 2),
-                "detection_enabled": config.cameras[name].detect.enabled,
-                "pid": pid,
-                "capture_pid": capture_pid,
-                "ffmpeg_pid": ffmpeg_pid,
-                "audio_rms": round(camera_stats.audio_rms.value, 4),
-                "audio_dBFS": round(camera_stats.audio_dBFS.value, 4),
-            }
-        else:
-            stats["cameras"][name] = {
-                "camera_fps": round(camera_stats.camera_fps.value, 2),
-                "process_fps": round(camera_stats.process_fps.value, 2),
-                "skipped_fps": round(camera_stats.skipped_fps.value, 2),
-                "detection_fps": round(camera_stats.detection_fps.value, 2),
-                "detection_enabled": config.cameras[name].detect.enabled,
-                "pid": pid,
-                "capture_pid": capture_pid,
-                "ffmpeg_pid": ffmpeg_pid,
-                "audio_rms": round(camera_stats.audio_rms.value, 4),
-                "audio_dBFS": round(camera_stats.audio_dBFS.value, 4),
-            }
+        stats["cameras"][name] = {
+            "camera_fps": round(camera_stats.camera_fps.value, 2),
+            "process_fps": round(camera_stats.process_fps.value, 2),
+            "skipped_fps": round(camera_stats.skipped_fps.value, 2),
+            "detection_fps": round(camera_stats.detection_fps.value, 2),
+            "detection_enabled": config.cameras[name].detect.enabled,
+            "pid": pid,
+            "capture_pid": capture_pid,
+            "ffmpeg_pid": ffmpeg_pid,
+            "audio_rms": round(camera_stats.audio_rms.value, 4),
+            "audio_dBFS": round(camera_stats.audio_dBFS.value, 4),
+        }
 
     stats["detectors"] = {}
     for name, detector in stats_tracking["detectors"].items():
@@ -319,13 +306,12 @@ def stats_snapshot(
             "pid": pid,
         }
 
-    if restartHA != False:
-        total_camera_fps = 1000
-
     stats["camera_fps"] = round(total_camera_fps, 2)
     stats["process_fps"] = round(total_process_fps, 2)
     stats["skipped_fps"] = round(total_skipped_fps, 2)
     stats["detection_fps"] = round(total_detection_fps, 2)
+
+    stats["restart"] = restartHA
 
     stats["embeddings"] = {}
 
