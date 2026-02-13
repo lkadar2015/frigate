@@ -14,6 +14,7 @@ class StatsTrackingTypes(TypedDict):
     latest_frigate_version: str
     last_updated: int
     processes: dict[str, int]
+    restart: boolean
 
 
 class ModelStatusTypesEnum(str, Enum):
