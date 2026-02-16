@@ -32,7 +32,7 @@ from frigate.util.services import (
 )
 from frigate.version import VERSION
 
-from frigate.video import restartHA
+restartHA = False
 
 def get_latest_version(config: FrigateConfig) -> str:
     if not config.telemetry.version_check:
