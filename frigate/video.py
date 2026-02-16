@@ -54,10 +54,9 @@ from frigate.util.object import (
 )
 from frigate.util.process import FrigateProcess
 from frigate.util.time import get_tomorrow_at_time
+from frigate.stats.util import restartHA
 
 logger = logging.getLogger(__name__)
-
-restartHA = False
 
 def stop_ffmpeg(ffmpeg_process: sp.Popen[Any], logger: logging.Logger):
     logger.info("Terminating the existing ffmpeg process...")
