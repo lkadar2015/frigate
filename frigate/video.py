@@ -222,8 +222,8 @@ class CameraWatchdog(threading.Thread):
     def reset_capture_thread(
         self, terminate: bool = True, drain_output: bool = True
     ) -> None:
+        restartHA = True
         if terminate:
-            restartHA = True
             self.ffmpeg_detect_process.terminate()
             try:
                 self.logger.info("Waiting for ffmpeg to exit gracefully...")
