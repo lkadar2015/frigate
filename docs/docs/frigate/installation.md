@@ -112,42 +112,65 @@ The Hailo-8 and Hailo-8L AI accelerators are available in both M.2 and HAT form 
 
 :::warning
 
-The Raspberry Pi kernel includes an older version of the Hailo driver that is incompatible with Frigate. You **must** follow the installation steps below to install the correct driver version, and you **must** disable the built-in kernel driver as described in step 1.
+On Raspberry Pi OS **Bookworm**, the kernel includes an older version of the Hailo driver that is incompatible with Frigate. You **must** follow the installation steps below to install the correct driver version, and you **must** disable the built-in kernel driver as described in step 1.
+
+On Raspberry Pi OS **Trixie**, the Hailo driver is no longer shipped with the kernel. It is installed via DKMS, and the conflict described below does not apply. You can simply run the installation script.
 
 :::
 
-1. **Disable the built-in Hailo driver (Raspberry Pi only)**:
+1. **Disable the built-in Hailo driver (Raspberry Pi Bookworm OS only)**:
 
    :::note
 
-   If you are **not** using a Raspberry Pi, skip this step and proceed directly to step 2.
+   If you are **not** using a Raspberry Pi with **Bookworm OS**, skip this step and proceed directly to step 2.
+   
+   If you are using Raspberry Pi with **Trixie OS**, also skip this step and proceed directly to step 2.
 
    :::
 
-   If you are using a Raspberry Pi, you need to blacklist the built-in kernel Hailo driver to prevent conflicts. First, check if the driver is currently loaded:
+   First, check if the driver is currently loaded:
 
    ```bash
    lsmod | grep hailo
    ```
-
+   
    If it shows `hailo_pci`, unload it:
 
    ```bash
-   sudo rmmod hailo_pci
+   sudo modprobe -r hailo_pci
    ```
-
-   Now blacklist the driver to prevent it from loading on boot:
+   
+   Then locate the built-in kernel driver and rename it so it cannot be loaded.
+   Renaming allows the original driver to be restored later if needed.
+   First, locate the currently installed kernel module:
 
    ```bash
-   echo "blacklist hailo_pci" | sudo tee /etc/modprobe.d/blacklist-hailo_pci.conf
+   modinfo -n hailo_pci
    ```
 
-   Update initramfs to ensure the blacklist takes effect:
-
+   Example output:
+   
+   ```
+   /lib/modules/6.6.31+rpt-rpi-2712/kernel/drivers/media/pci/hailo/hailo_pci.ko.xz
+   ```
+   Save the module path to a variable:
+   
    ```bash
-   sudo update-initramfs -u
+   BUILTIN=$(modinfo -n hailo_pci)
    ```
 
+   And rename the module by appending .bak:
+    
+   ```bash
+   sudo mv "$BUILTIN" "${BUILTIN}.bak"
+   ```
+   
+   Now refresh the kernel module map so the system recognizes the change:
+   
+   ```bash
+   sudo depmod -a
+   ```
+   
    Reboot your Raspberry Pi:
 
    ```bash
@@ -160,9 +183,9 @@ The Raspberry Pi kernel includes an older version of the Hailo driver that is in
    lsmod | grep hailo
    ```
 
-   This command should return no results. If it still shows `hailo_pci`, the blacklist did not take effect properly and you may need to check for other Hailo packages installed via apt that are loading the driver.
+   This command should return no results.
 
-2. **Run the installation script**:
+3. **Run the installation script**:
 
    Download the installation script:
 
@@ -190,7 +213,7 @@ The Raspberry Pi kernel includes an older version of the Hailo driver that is in
    - Download and install the required firmware
    - Set up udev rules
 
-3. **Reboot your system**:
+4. **Reboot your system**:
 
    After the script completes successfully, reboot to load the firmware:
 
@@ -198,7 +221,7 @@ The Raspberry Pi kernel includes an older version of the Hailo driver that is in
    sudo reboot
    ```
 
-4. **Verify the installation**:
+5. **Verify the installation**:
 
    After rebooting, verify that the Hailo device is available:
 
@@ -210,6 +233,38 @@ The Raspberry Pi kernel includes an older version of the Hailo driver that is in
 
    ```bash
    lsmod | grep hailo_pci
+   ```
+
+   Verify the driver version:
+   
+   ```bash
+   cat /sys/module/hailo_pci/version
+   ```
+   
+   Verify that the firmware was installed correctly:
+   
+   ```bash
+   ls -l /lib/firmware/hailo/hailo8_fw.bin
+   ```
+
+  **Optional: Fix PCIe descriptor page size error**
+
+   If you encounter the following error:
+
+   ```
+   [HailoRT] [error] CHECK failed - max_desc_page_size given 16384 is bigger than hw max desc page size 4096
+   ```
+
+   Create a configuration file to force the correct descriptor page size:
+
+   ```bash
+   echo 'options hailo_pci force_desc_page_size=4096' | sudo tee /etc/modprobe.d/hailo_pci.conf
+   ```
+
+   and reboot:
+
+   ```bash
+   sudo reboot
    ```
 
 #### Setup
@@ -634,3 +689,42 @@ docker run \
 ```
 
 Log into QNAP, open Container Station. Frigate docker container should be listed under 'Overview' and running. Visit Frigate Web UI by clicking Frigate docker, and then clicking the URL shown at the top of the detail page.
+
+## macOS - Apple Silicon
+
+:::warning
+
+macOS uses port 5000 for its Airplay Receiver service.  If you want to expose port 5000 in Frigate for local app and API access the port will need to be mapped to another port on the host e.g. 5001
+
+Failure to remap port 5000 on the host will result in the WebUI and all API endpoints on port 5000 being unreachable, even if port 5000 is exposed correctly in Docker.
+
+:::
+
+Docker containers on macOS can be orchestrated by either [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) or [OrbStack](https://orbstack.dev) (native swift app). The difference in inference speeds is negligable, however CPU, power consumption and container start times will be lower on OrbStack because it is a native Swift application. 
+
+To allow Frigate to use the Apple Silicon Neural Engine / Processing Unit (NPU) the host must be running [Apple Silicon Detector](../configuration/object_detectors.md#apple-silicon-detector) on the host (outside Docker)
+
+#### Docker Compose example
+```yaml
+services:
+  frigate:
+    container_name: frigate
+    image: ghcr.io/blakeblackshear/frigate:stable-arm64
+    restart: unless-stopped
+    shm_size: "512mb" # update for your cameras based on calculation above
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /path/to/your/config:/config
+      - /path/to/your/recordings:/recordings
+    ports:
+      - "8971:8971"
+      # If exposing on macOS map to a diffent host port like 5001 or any orher port with no conflicts
+      # - "5001:5000" # Internal unauthenticated access. Expose carefully. 
+      - "8554:8554" # RTSP feeds
+    extra_hosts:
+      # This is very important
+      # It allows frigate access to the NPU on Apple Silicon via Apple Silicon Detector
+      - "host.docker.internal:host-gateway" # Required to talk to the NPU detector
+    environment:
+      - FRIGATE_RTSP_PASSWORD: "password"
+```
