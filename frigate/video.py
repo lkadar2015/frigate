@@ -54,7 +54,6 @@ from frigate.util.object import (
 )
 from frigate.util.process import FrigateProcess
 from frigate.util.time import get_tomorrow_at_time
-from frigate.stats.util import restartHA
 
 logger = logging.getLogger(__name__)
 
@@ -224,7 +223,7 @@ class CameraWatchdog(threading.Thread):
     def reset_capture_thread(
         self, terminate: bool = True, drain_output: bool = True
     ) -> None:
-        restartHA = True
+        self.logger.error("RESTARTHA")
         if terminate:
             self.ffmpeg_detect_process.terminate()
             try:
