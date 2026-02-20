@@ -32,8 +32,6 @@ from frigate.util.services import (
 )
 from frigate.version import VERSION
 
-restartHA = False
-
 def get_latest_version(config: FrigateConfig) -> str:
     if not config.telemetry.version_check:
         return "disabled"
@@ -310,8 +308,6 @@ def stats_snapshot(
     stats["process_fps"] = round(total_process_fps, 2)
     stats["skipped_fps"] = round(total_skipped_fps, 2)
     stats["detection_fps"] = round(total_detection_fps, 2)
-
-    stats["restart"] = restartHA != False
 
     stats["embeddings"] = {}
 
