@@ -84,6 +84,8 @@ def capture_frames(
                 logger.error(
                     f"{config.name}: Unable to read frames from ffmpeg process."
                 )
+                # set fps to 0 in case of error
+                fps.value = 0
 
                 if ffmpeg_process.poll() is not None:
                     logger.error(
