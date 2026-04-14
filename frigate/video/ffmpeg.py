@@ -86,6 +86,7 @@ def capture_frames(
                 )
                 # set fps to 0 in case of error
                 fps.value = 0
+                break
 
                 if ffmpeg_process.poll() is not None:
                     logger.error(
