@@ -84,9 +84,6 @@ def capture_frames(
                 logger.error(
                     f"{config.name}: Unable to read frames from ffmpeg process."
                 )
-                # set fps to 0 in case of error
-                fps.value = 0
-                break
 
                 if ffmpeg_process.poll() is not None:
                     logger.error(
@@ -373,6 +370,7 @@ class CameraWatchdog(threading.Thread):
                 if can_restart:
                     self.reset_capture_thread()
                     last_restart_time = now
+                    break
             else:
                 # process is running normally
                 self._send_detect_status("online", now)
