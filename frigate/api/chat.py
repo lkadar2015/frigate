@@ -36,6 +36,8 @@ from frigate.api.defs.response.chat_response import (
 )
 from frigate.api.defs.tags import Tags
 from frigate.api.event import events
+from frigate.config import FrigateConfig
+from frigate.config.ui import UnitSystemEnum
 from frigate.genai.utils import build_assistant_message_for_conversation
 from frigate.jobs.vlm_watch import (
     get_vlm_watch_job,
@@ -401,9 +403,38 @@ def get_tools() -> JSONResponse:
     return JSONResponse(content={"tools": tools})
 
 
+def _resolve_zones(
+    zones: List[str],
+    config: FrigateConfig,
+    target_cameras: List[str],
+) -> List[str]:
+    """Map zone names to their canonical config keys, case-insensitively.
+
+    LLMs frequently echo a user's casing ("Front Yard") instead of the
+    configured key ("front_yard"). The downstream zone filter is a SQLite GLOB
+    over the JSON-encoded zones column, which is case-sensitive — so an
+    unnormalized name silently returns zero matches. Build a lookup over the
+    relevant cameras' configured zones and substitute when we find a match;
+    unknown names pass through so behavior matches what the model asked for.
+    """
+    if not zones:
+        return zones
+
+    lookup: Dict[str, str] = {}
+    for camera_id in target_cameras:
+        camera_config = config.cameras.get(camera_id)
+        if camera_config is None:
+            continue
+        for zone_name in camera_config.zones.keys():
+            lookup.setdefault(zone_name.lower(), zone_name)
+
+    return [lookup.get(z.lower(), z) for z in zones]
+
+
 async def _execute_search_objects(
     arguments: Dict[str, Any],
     allowed_cameras: List[str],
+    config: FrigateConfig,
 ) -> JSONResponse:
     """
     Execute the search_objects tool.
@@ -437,6 +468,11 @@ async def _execute_search_objects(
     # Convert zones array to comma-separated string if provided
     zones = arguments.get("zones")
     if isinstance(zones, list):
+        camera_arg = arguments.get("camera")
+        target_cameras = (
+            [camera_arg] if camera_arg and camera_arg != "all" else allowed_cameras
+        )
+        zones = _resolve_zones(zones, config, target_cameras)
         zones = ",".join(zones)
     elif zones is None:
         zones = "all"
@@ -527,6 +563,11 @@ async def _execute_find_similar_objects(
     labels = arguments.get("labels") or [anchor.label]
     sub_labels = arguments.get("sub_labels")
     zones = arguments.get("zones")
+
+    if zones:
+        zones = _resolve_zones(
+            zones, request.app.frigate_config, cameras or list(allowed_cameras)
+        )
 
     similarity_mode = arguments.get("similarity_mode", "fused")
     if similarity_mode not in ("visual", "semantic", "fused"):
@@ -655,7 +696,9 @@ async def execute_tool(
     logger.debug(f"Executing tool: {tool_name} with arguments: {arguments}")
 
     if tool_name == "search_objects":
-        return await _execute_search_objects(arguments, allowed_cameras)
+        return await _execute_search_objects(
+            arguments, allowed_cameras, request.app.frigate_config
+        )
 
     if tool_name == "find_similar_objects":
         result = await _execute_find_similar_objects(
@@ -835,7 +878,9 @@ async def _execute_tool_internal(
     This is used by the chat completion endpoint to execute tools.
     """
     if tool_name == "search_objects":
-        response = await _execute_search_objects(arguments, allowed_cameras)
+        response = await _execute_search_objects(
+            arguments, allowed_cameras, request.app.frigate_config
+        )
         try:
             if hasattr(response, "body"):
                 body_str = response.body.decode("utf-8")
@@ -898,6 +943,9 @@ async def _execute_start_camera_watch(
         return {"error": f"Camera '{camera}' not found."}
 
     await require_camera_access(camera, request=request)
+
+    if zones:
+        zones = _resolve_zones(zones, config, [camera])
 
     genai_manager = request.app.genai_manager
     chat_client = genai_manager.chat_client
@@ -1254,6 +1302,7 @@ async def chat_completion(
 
     cameras_info = []
     config = request.app.frigate_config
+    has_speed_zone = False
     for camera_id in allowed_cameras:
         if camera_id not in config.cameras:
             continue
@@ -1264,6 +1313,10 @@ async def chat_completion(
             else camera_id.replace("_", " ").title()
         )
         zone_names = list(camera_config.zones.keys())
+        if not has_speed_zone:
+            has_speed_zone = any(
+                zone.distances for zone in camera_config.zones.values()
+            )
         if zone_names:
             cameras_info.append(
                 f"  - {friendly_name} (ID: {camera_id}, zones: {', '.join(zone_names)})"
@@ -1279,6 +1332,13 @@ async def chat_completion(
             + "\n\nWhen users refer to cameras by their friendly name (e.g., 'Back Deck Camera'), use the corresponding camera ID (e.g., 'back_deck_cam') in tool calls."
         )
 
+    speed_units_section = ""
+    if has_speed_zone:
+        speed_unit = (
+            "mph" if config.ui.unit_system == UnitSystemEnum.imperial else "km/h"
+        )
+        speed_units_section = f"\n\nReport object speeds to the user in {speed_unit}."
+
     system_prompt = f"""You are a helpful assistant for Frigate, a security camera NVR system. You help users answer questions about their cameras, detected objects, and events.
 
 Current server local date and time: {current_date_str} at {current_time_str}
@@ -1290,7 +1350,7 @@ When users ask about "today", "yesterday", "this week", etc., use the current da
 When searching for objects or events, use ISO 8601 format for dates (e.g., {current_date_str}T00:00:00Z for the start of today).
 Always be accurate with time calculations based on the current date provided.
 
-When a user refers to a specific object they have seen or describe with identifying details ("that green car", "the person in the red jacket", "a package left today"), prefer the find_similar_objects tool over search_objects. Use search_objects first only to locate the anchor event, then pass its id to find_similar_objects. For generic queries like "show me all cars today", keep using search_objects. If a user message begins with [attached_event:<id>], treat that event id as the anchor for any similarity or "tell me more" request in the same message and call find_similar_objects with that id.{cameras_section}"""
+When a user refers to a specific object they have seen or describe with identifying details ("that green car", "the person in the red jacket", "a package left today"), prefer the find_similar_objects tool over search_objects. Use search_objects first only to locate the anchor event, then pass its id to find_similar_objects. For generic queries like "show me all cars today", keep using search_objects. If a user message begins with [attached_event:<id>], treat that event id as the anchor for any similarity or "tell me more" request in the same message and call find_similar_objects with that id.{cameras_section}{speed_units_section}"""
 
     conversation.append(
         {

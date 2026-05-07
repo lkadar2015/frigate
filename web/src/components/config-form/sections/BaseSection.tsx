@@ -9,7 +9,7 @@ import {
   useRef,
   useContext,
 } from "react";
-import useSWR from "swr";
+import useSWR, { mutate as swrMutate } from "swr";
 import axios from "axios";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
@@ -22,9 +22,11 @@ import {
   modifySchemaForSection,
   getEffectiveDefaultsForSection,
   sanitizeOverridesForSection,
+  synthesizeMissingObjectFilters,
 } from "./section-special-cases";
 import { getSectionValidation } from "../section-validations";
 import { useConfigOverride } from "@/hooks/use-config-override";
+import { CameraOverridesBadge } from "./CameraOverridesBadge";
 import { useSectionSchema } from "@/hooks/use-config-schema";
 import type { FrigateConfig } from "@/types/frigateConfig";
 import { Badge } from "@/components/ui/badge";
@@ -57,7 +59,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { applySchemaDefaults } from "@/lib/config-schema";
 import { cn } from "@/lib/utils";
-import { ConfigSectionData, JsonValue } from "@/types/configForm";
+import {
+  ConfigSectionData,
+  HiddenFieldEntry,
+  JsonValue,
+} from "@/types/configForm";
 import ActivityIndicator from "@/components/indicators/activity-indicator";
 import { StatusBarMessagesContext } from "@/context/statusbar-provider";
 import {
@@ -65,10 +71,15 @@ import {
   globalCameraDefaultSections,
   buildOverrides,
   buildConfigDataForPath,
+  flattenOverrides,
   getBaseCameraSectionValue,
+  resolveHiddenFieldEntries,
   sanitizeSectionData as sharedSanitizeSectionData,
   requiresRestartForOverrides as sharedRequiresRestartForOverrides,
 } from "@/utils/configUtil";
+import SaveAllPreviewPopover, {
+  type SaveAllPreviewItem,
+} from "@/components/overlay/detail/SaveAllPreviewPopover";
 import RestartDialog from "@/components/overlay/dialog/RestartDialog";
 import { useRestart } from "@/api/ws";
 import type {
@@ -85,7 +96,7 @@ export interface SectionConfig {
   /** Fields to group together */
   fieldGroups?: Record<string, string[]>;
   /** Fields to hide from UI */
-  hiddenFields?: string[];
+  hiddenFields?: HiddenFieldEntry[];
   /** Fields to show in advanced section */
   advancedFields?: string[];
   /** Fields to compare for override detection */
@@ -352,25 +363,34 @@ export function ConfigSection({
     return get(config, sectionPath);
   }, [config, cameraName, sectionPath, effectiveLevel, profileName]);
 
-  const rawFormData = useMemo(() => {
+  const rawFormData = useMemo<ConfigSectionData>(() => {
     if (!config) return {};
 
     if (rawSectionValue === undefined || rawSectionValue === null) {
       return {};
     }
 
-    return rawSectionValue;
-  }, [config, rawSectionValue]);
+    return synthesizeMissingObjectFilters(
+      sectionPath,
+      rawSectionValue,
+      modifiedSchema ?? undefined,
+    ) as ConfigSectionData;
+  }, [config, rawSectionValue, sectionPath, modifiedSchema]);
 
   // When editing a profile, hide fields that require a restart since they
   // cannot take effect via profile switching alone.
   const effectiveHiddenFields = useMemo(() => {
+    const base = resolveHiddenFieldEntries(sectionConfig.hiddenFields, config);
     if (!profileName || !sectionConfig.restartRequired?.length) {
-      return sectionConfig.hiddenFields;
+      return base;
     }
-    const base = sectionConfig.hiddenFields ?? [];
     return [...new Set([...base, ...sectionConfig.restartRequired])];
-  }, [profileName, sectionConfig.hiddenFields, sectionConfig.restartRequired]);
+  }, [
+    profileName,
+    sectionConfig.hiddenFields,
+    sectionConfig.restartRequired,
+    config,
+  ]);
 
   const sanitizeSectionData = useCallback(
     (data: ConfigSectionData) =>
@@ -382,7 +402,7 @@ export function ConfigSection({
     const baseData = modifiedSchema
       ? applySchemaDefaults(modifiedSchema, rawFormData)
       : rawFormData;
-    return sanitizeSectionData(baseData);
+    return sanitizeSectionData(baseData as ConfigSectionData);
   }, [rawFormData, modifiedSchema, sanitizeSectionData]);
 
   const baselineSnapshot = useMemo(() => {
@@ -738,6 +758,7 @@ export function ConfigSection({
       }
 
       await refreshConfig();
+      swrMutate("config/raw_paths");
       setPendingData(null);
       onSave?.();
     } catch (error) {
@@ -913,6 +934,34 @@ export function ConfigSection({
     );
   }, [sectionConfig?.renderers, sectionPath, cameraName, setPendingData]);
 
+  // Build a flat list of pending field changes for this section only.
+  // Mirrors the global Save All preview but scoped to the current section so
+  // users can inspect what will be saved without leaving the section.
+  const sectionPreviewItems = useMemo<SaveAllPreviewItem[]>(() => {
+    if (!hasChanges) return [];
+    if (!effectiveOverrides || typeof effectiveOverrides !== "object") {
+      return [];
+    }
+    const flattened = flattenOverrides(effectiveOverrides as JsonValue);
+    return flattened.map(({ path, value }) => ({
+      scope: effectiveLevel,
+      cameraName,
+      profileName: profileName
+        ? (profileFriendlyName ?? profileName)
+        : undefined,
+      fieldPath: path ? `${sectionPath}.${path}` : sectionPath,
+      value,
+    }));
+  }, [
+    hasChanges,
+    effectiveOverrides,
+    effectiveLevel,
+    cameraName,
+    profileName,
+    profileFriendlyName,
+    sectionPath,
+  ]);
+
   if (!modifiedSchema) {
     return null;
   }
@@ -1012,12 +1061,18 @@ export function ConfigSection({
         >
           {hasChanges && (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-danger">
+              <span className="text-sm text-unsaved">
                 {t("unsavedChanges", {
                   ns: "views/settings",
                   defaultValue: "You have unsaved changes",
                 })}
               </span>
+              <SaveAllPreviewPopover
+                items={sectionPreviewItems}
+                className="h-7 w-7"
+                align="start"
+                side="top"
+              />
             </div>
           )}
           <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center md:w-auto">
@@ -1225,6 +1280,9 @@ export function ConfigSection({
                         </TooltipContent>
                       </Tooltip>
                     )}
+                  {showOverrideIndicator && effectiveLevel === "global" && (
+                    <CameraOverridesBadge sectionPath={sectionPath} />
+                  )}
                   {hasChanges && (
                     <Badge variant="outline" className="text-xs">
                       {t("button.modified", {
@@ -1296,10 +1354,13 @@ export function ConfigSection({
                       </TooltipContent>
                     </Tooltip>
                   )}
+                {showOverrideIndicator && effectiveLevel === "global" && (
+                  <CameraOverridesBadge sectionPath={sectionPath} />
+                )}
                 {hasChanges && (
                   <Badge
                     variant="secondary"
-                    className="cursor-default bg-danger text-xs text-white hover:bg-danger"
+                    className="cursor-default bg-unsaved text-xs text-black hover:bg-unsaved"
                   >
                     {t("button.modified", {
                       ns: "common",

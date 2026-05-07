@@ -20,7 +20,18 @@
     "overriddenGlobal": "Overridden (Global)",
     "overriddenGlobalTooltip": "This camera overrides global configuration settings in this section",
     "overriddenBaseConfig": "Overridden (Base Config)",
-    "overriddenBaseConfigTooltip": "The {{profile}} profile overrides configuration settings in this section"
+    "overriddenBaseConfigTooltip": "The {{profile}} profile overrides configuration settings in this section",
+    "overriddenInCameras": {
+      "label_one": "Overridden in {{count}} camera",
+      "label_other": "Overridden in {{count}} cameras",
+      "tooltip_one": "{{count}} camera overrides values in this section. Click to see details.",
+      "tooltip_other": "{{count}} cameras override values in this section. Click to see details.",
+      "heading_one": "This global section has fields that are overridden in {{count}} camera.",
+      "heading_other": "This global section has fields that are overridden in {{count}} cameras.",
+      "othersField_one": "{{count}} other",
+      "othersField_other": "{{count}} others",
+      "profilePrefix": "{{profile}} profile: {{fields}}"
+    }
   },
   "menu": {
     "general": "General",
@@ -415,6 +426,7 @@
         "audioCodecGood": "Audio codec is {{codec}}.",
         "resolutionHigh": "A resolution of {{resolution}} may cause increased resource usage.",
         "resolutionLow": "A resolution of {{resolution}} may be too low for reliable detection of small objects.",
+        "resolutionUnknown": "The resolution of this stream could not be probed. You should manually set the detect resolution in Settings or your config.",
         "noAudioWarning": "No audio detected for this stream, recordings will not have audio.",
         "audioCodecRecordError": "The AAC audio codec is required to support audio in recordings.",
         "audioCodecRequired": "An audio stream is required to support audio detection.",
@@ -456,7 +468,13 @@
       "enableDesc": "Temporarily disable an enabled camera until Frigate restarts. Disabling a camera completely stops Frigate's processing of this camera's streams. Detection, recording, and debugging will be unavailable.<br /> <em>Note: This does not disable go2rtc restreams.</em>",
       "disableLabel": "Disabled cameras",
       "disableDesc": "Enable a camera that is currently not visible in the UI and disabled in the configuration. A restart of Frigate is required after enabling.",
-      "enableSuccess": "Enabled {{cameraName}} in configuration. Restart Frigate to apply the changes."
+      "enableSuccess": "Enabled {{cameraName}} in configuration. Restart Frigate to apply the changes.",
+      "friendlyName": {
+        "edit": "Edit camera display name",
+        "title": "Edit Display Name",
+        "description": "Set the friendly name shown for this camera throughout the Frigate UI. Leave blank to use the camera ID.",
+        "rename": "Rename"
+      }
     },
     "cameraConfig": {
       "add": "Add Camera",
@@ -494,6 +512,14 @@
       "inherit": "Inherit",
       "enabled": "Enabled",
       "disabled": "Disabled"
+    },
+    "cameraType": {
+      "title": "Camera Type",
+      "label": "Camera type",
+      "description": "Set the type for each camera. Dedicated LPR cameras are single-purpose cameras with powerful optical zoom to capture license plates on distant vehicles. Most cameras should use the normal camera type unless the camera is specifically for LPR and has a tightly focused view on license plates.",
+      "normal": "Normal",
+      "dedicatedLpr": "Dedicated LPR",
+      "saveSuccess": "Updated camera type for {{cameraName}}. Restart Frigate to apply the changes."
     }
   },
   "cameraReview": {
@@ -1634,15 +1660,15 @@
       "audioDetectionDisabled": "Audio detection is not enabled for this camera. Audio transcription requires audio detection to be active."
     },
     "detect": {
-      "fpsGreaterThanFive": "Setting the detect FPS higher than 5 is not recommended."
+      "fpsGreaterThanFive": "Setting the detect FPS higher than 5 is not recommended. Higher values may cause performance issues and will not provide any benefit."
     },
     "faceRecognition": {
-      "globalDisabled": "Face recognition is not enabled at the global level. Enable it in global settings for camera-level face recognition to function.",
-      "personNotTracked": "Face recognition requires the 'person' object to be tracked. Ensure 'person' is in the object tracking list."
+      "globalDisabled": "The face recognition enrichment must be enabled for face recognition features to function on this camera.",
+      "personNotTracked": "Face recognition requires the 'person' object to be tracked. Enable 'person' in Objects for this camera."
     },
     "lpr": {
-      "globalDisabled": "License plate recognition is not enabled at the global level. Enable it in global settings for camera-level LPR to function.",
-      "vehicleNotTracked": "License plate recognition requires 'car' or 'motorcycle' to be tracked."
+      "globalDisabled": "The license plate recognition enrichment must be enabled for LPR features to function on this camera.",
+      "vehicleNotTracked": "License plate recognition requires 'car' or 'motorcycle' to be tracked. Enable 'car' or 'motorcycle' in Objects for this camera."
     },
     "record": {
       "noRecordRole": "No streams have the record role defined. Recording will not function."

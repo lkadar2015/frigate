@@ -1,5 +1,7 @@
 """Ollama Provider for Frigate AI."""
 
+import base64
+import binascii
 import json
 import logging
 from typing import Any, AsyncGenerator, Optional
@@ -14,6 +16,41 @@ from frigate.genai import GenAIClient, register_genai_provider
 from frigate.genai.utils import parse_tool_calls_from_message
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_multimodal_content(
+    content: Any,
+) -> tuple[Optional[str], Optional[list[bytes]]]:
+    """Convert OpenAI-style multimodal content to Ollama's (text, images) shape.
+
+    The chat API constructs user messages with content as a list of
+    ``{"type": "text"}`` and ``{"type": "image_url"}`` parts when a tool
+    returns a live frame. Ollama's SDK requires content to be a string and
+    images to be passed in a separate field, so we extract each.
+    """
+    if not isinstance(content, list):
+        return content, None
+
+    text_parts: list[str] = []
+    images: list[bytes] = []
+    for part in content:
+        if not isinstance(part, dict):
+            continue
+        part_type = part.get("type")
+        if part_type == "text":
+            text = part.get("text")
+            if text:
+                text_parts.append(str(text))
+        elif part_type == "image_url":
+            url = (part.get("image_url") or {}).get("url", "")
+            if isinstance(url, str) and url.startswith("data:"):
+                try:
+                    encoded = url.split(",", 1)[1]
+                    images.append(base64.b64decode(encoded, validate=True))
+                except (ValueError, IndexError, binascii.Error) as e:
+                    logger.debug("Failed to decode multimodal image url: %s", e)
+
+    return ("\n".join(text_parts) if text_parts else None), (images or None)
 
 
 @register_genai_provider(GenAIProviderEnum.ollama)
@@ -31,6 +68,12 @@ class OllamaClient(GenAIClient):
     provider: ApiClient | None
     provider_options: dict[str, Any]
 
+    def _auth_headers(self) -> dict | None:
+        if self.genai_config.api_key:
+            return {"Authorization": "Bearer " + self.genai_config.api_key}
+
+        return None
+
     def _init_provider(self) -> ApiClient | None:
         """Initialize the client."""
         self.provider_options = {
@@ -39,7 +82,11 @@ class OllamaClient(GenAIClient):
         }
 
         try:
-            client = ApiClient(host=self.genai_config.base_url, timeout=self.timeout)
+            client = ApiClient(
+                host=self.genai_config.base_url,
+                timeout=self.timeout,
+                headers=self._auth_headers(),
+            )
             # ensure the model is available locally
             response = client.show(self.genai_config.model)
             if response.get("error"):
@@ -113,6 +160,15 @@ class OllamaClient(GenAIClient):
                 schema = response_format.get("json_schema", {}).get("schema")
                 if schema:
                     ollama_options["format"] = self._clean_schema_for_ollama(schema)
+            logger.debug(
+                "Ollama generate request: model=%s, prompt_len=%s, image_count=%s, "
+                "has_format=%s, options=%s",
+                self.genai_config.model,
+                len(prompt),
+                len(images) if images else 0,
+                "format" in ollama_options,
+                {k: v for k, v in ollama_options.items() if k != "format"},
+            )
             result = self.provider.generate(
                 self.genai_config.model,
                 prompt,
@@ -120,9 +176,24 @@ class OllamaClient(GenAIClient):
                 **ollama_options,
             )
             logger.debug(
-                f"Ollama tokens used: eval_count={result.get('eval_count')}, prompt_eval_count={result.get('prompt_eval_count')}"
+                "Ollama generate response: done=%s, done_reason=%s, eval_count=%s, "
+                "prompt_eval_count=%s, response_len=%s",
+                result.get("done"),
+                result.get("done_reason"),
+                result.get("eval_count"),
+                result.get("prompt_eval_count"),
+                len(result.get("response", "") or ""),
             )
-            return str(result["response"]).strip()
+            response_text = str(result["response"]).strip()
+            if not response_text:
+                logger.warning(
+                    "Ollama returned a blank response for model %s (done_reason=%s, "
+                    "eval_count=%s). Check model output, ensure thinking is disabled.",
+                    self.genai_config.model,
+                    result.get("done_reason"),
+                    result.get("eval_count"),
+                )
+            return response_text
         except (
             TimeoutException,
             ResponseError,
@@ -142,7 +213,9 @@ class OllamaClient(GenAIClient):
                 return []
             try:
                 client = ApiClient(
-                    host=self.genai_config.base_url, timeout=self.timeout
+                    host=self.genai_config.base_url,
+                    timeout=self.timeout,
+                    headers=self._auth_headers(),
                 )
             except Exception:
                 return []
@@ -171,10 +244,13 @@ class OllamaClient(GenAIClient):
         """Build request_messages and params for chat (sync or stream)."""
         request_messages = []
         for msg in messages:
-            msg_dict = {
+            content, images = _normalize_multimodal_content(msg.get("content", ""))
+            msg_dict: dict[str, Any] = {
                 "role": msg.get("role"),
-                "content": msg.get("content", ""),
+                "content": content if content is not None else "",
             }
+            if images:
+                msg_dict["images"] = images
             if msg.get("tool_call_id"):
                 msg_dict["tool_call_id"] = msg["tool_call_id"]
             if msg.get("name"):
@@ -320,6 +396,7 @@ class OllamaClient(GenAIClient):
                 async_client = OllamaAsyncClient(
                     host=self.genai_config.base_url,
                     timeout=self.timeout,
+                    headers=self._auth_headers(),
                 )
                 response = await async_client.chat(**request_params)
                 result = self._message_from_response(response)
@@ -335,6 +412,7 @@ class OllamaClient(GenAIClient):
             async_client = OllamaAsyncClient(
                 host=self.genai_config.base_url,
                 timeout=self.timeout,
+                headers=self._auth_headers(),
             )
             content_parts: list[str] = []
             final_message: dict[str, Any] | None = None

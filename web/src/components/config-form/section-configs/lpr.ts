@@ -27,10 +27,12 @@ const lpr: SectionConfigOverrides = {
     ],
     fieldDocs: {
       enhancement: "/configuration/license_plate_recognition#enhancement",
+      debug_save_plates:
+        "/configuration/license_plate_recognition/#how-do-i-debug-lpr-issues",
     },
     restartRequired: [],
     fieldOrder: ["enabled", "min_area", "enhancement", "expire_time"],
-    hiddenFields: [],
+    hiddenFields: ["expire_time"],
     advancedFields: ["expire_time", "enhancement"],
     overrideFields: ["enabled", "min_area", "enhancement"],
   },
@@ -80,6 +82,9 @@ const lpr: SectionConfigOverrides = {
           label: false,
           suppressDescription: true,
         },
+      },
+      model_size: {
+        "ui:options": { size: "xs" },
       },
     },
   },
