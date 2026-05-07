@@ -410,7 +410,6 @@ class CameraWatchdog(threading.Thread):
                 if can_restart:
                     self.reset_capture_thread()
                     last_restart_time = now
-                    break
             else:
                 # process is running normally
                 self._send_detect_status("online", now)
