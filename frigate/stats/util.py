@@ -34,6 +34,8 @@ from frigate.util.services import (
 )
 from frigate.version import VERSION
 
+from frigate.video.ffmpeg import shall_restart
+
 
 def get_latest_version(config: FrigateConfig) -> str:
     if not config.telemetry.version_check:
@@ -474,6 +476,7 @@ def stats_snapshot(
         "latest_version": stats_tracking["latest_frigate_version"],
         "storage": {},
         "last_updated": int(time.time()),
+        "shall_restart": int(shall_restart),
     }
 
     for path in [RECORD_DIR, CLIPS_DIR, CACHE_DIR]:
