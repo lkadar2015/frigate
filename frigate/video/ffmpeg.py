@@ -32,6 +32,8 @@ from frigate.util.image import (
 )
 from frigate.util.process import FrigateProcess
 
+shall_restart = 11
+
 logger = logging.getLogger(__name__)
 
 # all built-in record presets use this segment_time
