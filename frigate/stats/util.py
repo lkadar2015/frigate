@@ -470,14 +470,24 @@ def stats_snapshot(
 
     get_processing_stats(config, stats, hwaccel_errors)
 
-    stats["service"] = {
-        "uptime": (int(time.time()) - stats_tracking["started"]),
-        "version": VERSION,
-        "latest_version": stats_tracking["latest_frigate_version"],
-        "storage": {},
-        "last_updated": int(time.time()),
-        "shall_restart": int(shall_restart),
-    }
+    if shall_restart is not 0:
+        stats["service"] = {
+            "uptime": (int(-1)),
+            "version": VERSION,
+            "latest_version": stats_tracking["latest_frigate_version"],
+            "storage": {},
+            "last_updated": int(time.time()),
+            "shall_restart": int(shall_restart),
+        }
+    else:
+        stats["service"] = {
+            "uptime": (int(time.time()) - stats_tracking["started"]),
+            "version": VERSION,
+            "latest_version": stats_tracking["latest_frigate_version"],
+            "storage": {},
+            "last_updated": int(time.time()),
+            "shall_restart": int(shall_restart),
+        }
 
     for path in [RECORD_DIR, CLIPS_DIR, CACHE_DIR]:
         try:
