@@ -32,7 +32,7 @@ from frigate.util.image import (
 )
 from frigate.util.process import FrigateProcess
 
-shall_restart = 11
+shall_restart = int(0)
 
 logger = logging.getLogger(__name__)
 
@@ -286,6 +286,8 @@ class CameraWatchdog(threading.Thread):
 
         # 1 second watchdog loop
         while not self.stop_event.wait(1):
+            shall_restart = int(2)
+
             updates = self._check_config_updates()
 
             # Handle ffmpeg config changes by restarting all ffmpeg processes
@@ -409,6 +411,7 @@ class CameraWatchdog(threading.Thread):
                 self.logger.info(
                     f"No frames received from {self.config.name} in 20 seconds. Exiting ffmpeg..."
                 )
+                shall_restart = int(1)
                 if can_restart:
                     self.reset_capture_thread()
                     last_restart_time = now
