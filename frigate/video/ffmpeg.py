@@ -32,7 +32,7 @@ from frigate.util.image import (
 )
 from frigate.util.process import FrigateProcess
 
-shall_restart = int(0)
+shall_restart: int
 
 logger = logging.getLogger(__name__)
 
