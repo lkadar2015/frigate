@@ -199,6 +199,8 @@ class CameraWatchdog(threading.Thread):
         self._last_record_status: str | None = None
         self._last_status_update_time: float = 0.0
 
+        shall_restart = int(0)
+
     def _send_detect_status(self, status: str, now: float) -> None:
         """Send detect status only if changed or retry_interval has elapsed."""
         if (
@@ -286,7 +288,6 @@ class CameraWatchdog(threading.Thread):
 
         # 1 second watchdog loop
         while not self.stop_event.wait(1):
-            shall_restart = int(2)
 
             updates = self._check_config_updates()
 
