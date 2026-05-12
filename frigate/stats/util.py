@@ -388,7 +388,7 @@ def stats_snapshot(
             "ffmpeg_pid": ffmpeg_pid,
             "audio_rms": round(camera_stats.audio_rms.value, 4),
             "audio_dBFS": round(camera_stats.audio_dBFS.value, 4),
-            "shall_restart": camera_stats.shall_restart.value
+            "shall_restart": camera_stats.shall_restart.value,
             **connection_quality,
         }
 
