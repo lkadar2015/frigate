@@ -32,8 +32,6 @@ from frigate.util.image import (
 )
 from frigate.util.process import FrigateProcess
 
-shall_restart = int
-
 logger = logging.getLogger(__name__)
 
 # all built-in record presets use this segment_time
@@ -141,6 +139,7 @@ class CameraWatchdog(threading.Thread):
         reconnects,
         detection_frame,
         stop_event,
+        shall_restart,
     ):
         threading.Thread.__init__(self)
         self.logger = logging.getLogger(f"watchdog.{config.name}")
@@ -164,6 +163,7 @@ class CameraWatchdog(threading.Thread):
         self.stalls = stalls
         self.reconnects = reconnects
         self.detection_frame = detection_frame
+        self.shall_restart = shall_restart
 
         self.config_subscriber = CameraConfigUpdateSubscriber(
             None,
@@ -199,7 +199,7 @@ class CameraWatchdog(threading.Thread):
         self._last_record_status: str | None = None
         self._last_status_update_time: float = 0.0
 
-        shall_restart = int(0)
+        self.shall_restart.value = 0
 
     def _send_detect_status(self, status: str, now: float) -> None:
         """Send detect status only if changed or retry_interval has elapsed."""
@@ -412,7 +412,7 @@ class CameraWatchdog(threading.Thread):
                 self.logger.info(
                     f"No frames received from {self.config.name} in 20 seconds. Exiting ffmpeg..."
                 )
-                shall_restart = int(1)
+                self.shall_restart.value = 1
                 if can_restart:
                     self.reset_capture_thread()
                     last_restart_time = now
@@ -695,6 +695,7 @@ class CameraCapture(FrigateProcess):
             self.camera_metrics.reconnects_last_hour,
             self.camera_metrics.detection_frame,
             self.stop_event,
+            self.camera_metrics.shall_restart,
         )
         camera_watchdog.start()
         camera_watchdog.join()
