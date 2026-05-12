@@ -34,8 +34,6 @@ from frigate.util.services import (
 )
 from frigate.version import VERSION
 
-from frigate.video.ffmpeg import shall_restart
-
 
 def get_latest_version(config: FrigateConfig) -> str:
     if not config.telemetry.version_check:
@@ -332,11 +330,15 @@ def stats_snapshot(
     stats: dict[str, Any] = {}
 
     total_camera_fps = total_process_fps = total_skipped_fps = total_detection_fps = 0
+    shall_restart = 0
 
     stats["cameras"] = {}
     for name, camera_stats in camera_metrics.items():
         if name not in config.cameras:
             continue
+
+        if camera_stats.shall_restart.value is not 0:
+            shall_restart = 1
 
         total_camera_fps += camera_stats.camera_fps.value
         total_process_fps += camera_stats.process_fps.value
@@ -386,6 +388,7 @@ def stats_snapshot(
             "ffmpeg_pid": ffmpeg_pid,
             "audio_rms": round(camera_stats.audio_rms.value, 4),
             "audio_dBFS": round(camera_stats.audio_dBFS.value, 4),
+            "shall_restart": camera_stats.shall_restart.value
             **connection_quality,
         }
 
@@ -394,6 +397,7 @@ def stats_snapshot(
     stats["process_fps"] = round(total_process_fps, 2)
     stats["skipped_fps"] = round(total_skipped_fps, 2)
     stats["detection_fps"] = round(total_detection_fps, 2)
+    stats["shall_restart"] = shall_restart
 
     stats["embeddings"] = {}
 
