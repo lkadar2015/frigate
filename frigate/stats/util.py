@@ -477,7 +477,6 @@ def stats_snapshot(
             "latest_version": stats_tracking["latest_frigate_version"],
             "storage": {},
             "last_updated": int(time.time()),
-            "shall_restart": shall_restart,
         }
     else:
         stats["service"] = {
@@ -486,7 +485,6 @@ def stats_snapshot(
             "latest_version": stats_tracking["latest_frigate_version"],
             "storage": {},
             "last_updated": int(time.time()),
-            "shall_restart": shall_restart,
         }
 
     for path in [RECORD_DIR, CLIPS_DIR, CACHE_DIR]:
