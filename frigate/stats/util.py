@@ -337,7 +337,7 @@ def stats_snapshot(
         if name not in config.cameras:
             continue
 
-        if camera_stats.shall_restart.value is not 0:
+        if camera_stats.shall_restart.value != 0:
             shall_restart = 1
 
         total_camera_fps += camera_stats.camera_fps.value
@@ -474,7 +474,7 @@ def stats_snapshot(
 
     get_processing_stats(config, stats, hwaccel_errors)
 
-    if shall_restart is not 0:
+    if shall_restart != 0:
         stats["service"] = {
             "uptime": (int(-1)),
             "version": VERSION,
