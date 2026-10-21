@@ -255,12 +255,16 @@ def stats_snapshot(
     stats: dict[str, Any] = {}
 
     total_camera_fps = total_process_fps = total_skipped_fps = total_detection_fps = 0
+    shall_restart = 0
 
     stats["cameras"] = {}
     for name, camera_stats in list(camera_metrics.items()):
         camera_config = config.cameras.get(name)
         if camera_config is None:
             continue
+
+        if camera_starts.shall_restart.value != 0:
+            shall_restart = 1
 
         total_camera_fps += camera_stats.camera_fps.value
         total_process_fps += camera_stats.process_fps.value
@@ -315,6 +319,7 @@ def stats_snapshot(
             "ffmpeg_pid": ffmpeg_pid,
             "audio_rms": round(camera_stats.audio_rms.value, 4),
             "audio_dBFS": round(camera_stats.audio_dBFS.value, 4),
+            "shall_restart": camera.shall_restart.value,
             **connection_quality,
         }
 
@@ -323,6 +328,7 @@ def stats_snapshot(
     stats["process_fps"] = round(total_process_fps, 2)
     stats["skipped_fps"] = round(total_skipped_fps, 2)
     stats["detection_fps"] = round(total_detection_fps, 2)
+    stats["shall_restart"] = shall_restart
 
     stats["embeddings"] = embeddings_stats(
         config, stats_tracking.get("embeddings_metrics")
@@ -338,16 +344,28 @@ def stats_snapshot(
 
     storage_maintainer = stats_tracking.get("storage_maintainer")
 
-    stats["service"] = {
-        "uptime": (int(time.time()) - stats_tracking["started"]),
-        "version": VERSION,
-        "latest_version": stats_tracking["latest_frigate_version"],
-        "storage": {},
-        "last_updated": int(time.time()),
-        "retention_unmet": bool(
-            storage_maintainer and storage_maintainer.retention_unmet
-        ),
-    }
+    if shall_restart !=0:
+        stats["service"] = {
+            "uptime": (int(-1)),
+            "version": VERSION,
+            "latest_version": stats_tracking["latest_frigate_version"],
+            "storage": {},
+            "last_updated": int(time.time()),
+            "retention_unmet": bool(
+                storage_maintainer and storage_maintainer.retention_unmet
+            ),
+        }
+    else:
+        stats["service"] = {
+            "uptime": (int(time.time()) - stats_tracking["started"]),
+            "version": VERSION,
+            "latest_version": stats_tracking["latest_frigate_version"],
+            "storage": {},
+            "last_updated": int(time.time()),
+            "retention_unmet": bool(
+                storage_maintainer and storage_maintainer.retention_unmet
+            ),
+        }
 
     for path in [RECORD_DIR, CLIPS_DIR, CACHE_DIR]:
         try:
