@@ -23,6 +23,8 @@ class CameraMetrics:
     reconnects_last_hour: ValueProxy[int]
     stalls_last_hour: ValueProxy[int]
 
+    shall_restart: ValueProxy[int]
+
     def __init__(self, manager: SyncManager):
         self.camera_fps = manager.Value("d", 0)
         self.detection_fps = manager.Value("d", 0)
@@ -40,6 +42,8 @@ class CameraMetrics:
         self.ffmpeg_pid = manager.Value("i", 0)
         self.reconnects_last_hour = manager.Value("i", 0)
         self.stalls_last_hour = manager.Value("i", 0)
+
+        self.shall_restart = manager.Value("d", 0)
 
 
 class PTZMetrics:
